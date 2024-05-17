@@ -22,4 +22,8 @@ impl Logger {
     pub fn info(&self, message: &str) {
         info!("{}", message.to_string().green());
     }
+
+    // pub fn error(&self, message: &str) {
+    //     error!("{}", message.to_string().red());
+    // }
 }

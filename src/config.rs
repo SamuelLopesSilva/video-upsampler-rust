@@ -6,7 +6,9 @@ pub struct Config {
     pub framerate: f32,
     pub output_path: std::path::PathBuf,
     pub frames_dir: std::path::PathBuf,
+    pub upscaled_frames_dir: std::path::PathBuf,
     pub audio_path: std::path::PathBuf,
+    pub final_resolution: (u32, u32), // new field for final resolution
 }
 
 impl Config {
@@ -23,10 +25,17 @@ impl Config {
         };
 
         let frames_dir: std::path::PathBuf = base_path.join(format!("{}_frames", base_path.file_name().unwrap().to_str().unwrap()));
+        let upscaled_frames_dir: std::path::PathBuf = base_path.join(format!("{}_upscaled_frames", base_path.file_name().unwrap().to_str().unwrap()));
         let audio_path: std::path::PathBuf = base_path.join(format!("{}_audio.aac", base_path.file_name().unwrap().to_str().unwrap()));
+
+        let final_resolution: (u32, u32) = (3840, 2160); 
 
         if !frames_dir.exists() {
             std::fs::create_dir_all(&frames_dir).expect("Failed to create frames directory");
+        }
+
+        if !upscaled_frames_dir.exists() {
+            std::fs::create_dir_all(&upscaled_frames_dir).expect("Failed to create upscaled frames directory");
         }
 
         Config {
@@ -35,7 +44,9 @@ impl Config {
             framerate,
             output_path,
             frames_dir,
+            upscaled_frames_dir,
             audio_path,
+            final_resolution,
         }
     }
 }
