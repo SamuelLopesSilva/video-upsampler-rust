@@ -47,3 +47,9 @@ To run the project on MacOS, Linux, and Windows, follow these steps:
    * `output.mp4` is the desired output file path. If the path for the output is not passed, the code will save the upscaled video in the same folder as the input file, with a filename that includes "_upscaled" inside a folder with the name of the input file name.
 
    The `Config` struct is initialized with these arguments, and the `main` function uses this configuration to extract frames from the input video, upscale them, and reassemble the video with the new frames and audio. Note: The `Config` struct expects (mandatory) the input file and framerate as command-line arguments. If these arguments are not provided, the program will exit with an error message.
+
+
+## TODO
+
+- [ ] Find some bilinear interpolation implementation to reduce bottleneck
+- [ ] Verify if changing the frame extraction code makes sense (use OpenCV)
