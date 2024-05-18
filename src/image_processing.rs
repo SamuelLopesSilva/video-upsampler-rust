@@ -6,7 +6,6 @@ use std::fs;
 use std::io::BufWriter;
 use std::io::{self};
 use std::path::Path;
-// use log::info;
 
 pub struct ImageProcessor<'a> {
     final_resolution: (u32, u32),
@@ -34,9 +33,9 @@ impl<'a> ImageProcessor<'a> {
     }
 
     pub fn upscale_frames(&self) -> Result<(), Box<dyn std::error::Error>> {
-        let entries = self.read_directory()?;
-        let total_files = entries.len();
-        let pb = ProgressBar::new(total_files as u64);
+        let entries: Vec<fs::DirEntry> = self.read_directory()?;
+        let total_files: usize = entries.len();
+        let pb: ProgressBar = ProgressBar::new(total_files as u64);
         pb.set_style(
             ProgressStyle::default_bar()
                 .template(
@@ -54,7 +53,7 @@ impl<'a> ImageProcessor<'a> {
         });
 
         if !errors.is_empty() {
-            let error_message = errors.join("\n");
+            let error_message: String = errors.join("\n");
             Err(Box::new(std::io::Error::new(
                 std::io::ErrorKind::Other,
                 error_message,
@@ -70,7 +69,7 @@ impl<'a> ImageProcessor<'a> {
     }
 
     fn upscale_and_save_image(&self, entry: &fs::DirEntry, pb: &ProgressBar) -> Option<String> {
-        let frame_path = entry.path();
+        let frame_path: std::path::PathBuf = entry.path();
         if frame_path.is_file() && frame_path.extension().unwrap_or_default() == "png" {
             if let Ok(image) = self.load_image(&frame_path) {
                 let upscaled_image = self.bilinear_interpolation(&image);
@@ -101,10 +100,10 @@ impl<'a> ImageProcessor<'a> {
     }
 
     fn load_image(&self, path: &Path) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, image::ImageError> {
-        let file = fs::File::open(path)?;
-        let reader = std::io::BufReader::new(file);
-        let dynamic_image = image::load(reader, image::ImageFormat::Png)?;
-        let image = dynamic_image.to_rgb8();
+        let file: File = fs::File::open(path)?;
+        let reader: io::BufReader<File> = std::io::BufReader::new(file);
+        let dynamic_image: image::DynamicImage = image::load(reader, image::ImageFormat::Png)?;
+        let image: ImageBuffer<Rgb<u8>, Vec<u8>> = dynamic_image.to_rgb8();
         Ok(image)
     }
 
@@ -116,8 +115,8 @@ impl<'a> ImageProcessor<'a> {
         let (new_width, new_height) = self.final_resolution;
         let mut new_image: ImageBuffer<Rgb<u8>, _> = ImageBuffer::new(new_width, new_height);
 
-        let width_ratio = width as f32 / new_width as f32;
-        let height_ratio = height as f32 / new_height as f32;
+        let width_ratio: f32 = width as f32 / new_width as f32;
+        let height_ratio: f32 = height as f32 / new_height as f32;
 
         for x in 0..new_width {
             for y in 0..new_height {

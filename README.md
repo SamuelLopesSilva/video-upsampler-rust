@@ -2,7 +2,7 @@
 
 ## Overview
 
-The "video-upsampler" project is a Rust-based application designed to upscale video resolution using some algorithms and techniques. The project utilizes the ffmpeg-next library for video processing, the image library for image manipulation, and the log, colored, env_logger libraries for logging.
+This project is a Rust-based application designed to upscale video resolution using some algorithms and techniques. The project utilizes the ffmpeg-next library for video processing, the image library for image manipulation, and the log, colored, env_logger libraries for logging.
 
 **Key Features**
 
