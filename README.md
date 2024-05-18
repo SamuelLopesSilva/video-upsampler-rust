@@ -48,8 +48,9 @@ To run the project on MacOS, Linux, and Windows, follow these steps:
 
    The `Config` struct is initialized with these arguments, and the `main` function uses this configuration to extract frames from the input video, upscale them, and reassemble the video with the new frames and audio. Note: The `Config` struct expects (mandatory) the input file and framerate as command-line arguments. If these arguments are not provided, the program will exit with an error message.
 
-
 ## TODO
 
-- [ ] Find some bilinear interpolation implementation to reduce bottleneck
-- [ ] Verify if changing the frame extraction code makes sense (use OpenCV)
+- [X] Find some bilinear interpolation implementation to reduce bottleneck
+- [X] Verify if changing the frame extraction code makes sense (use OpenCV)
+- [X] Try to reduce the time spent in upscale_and_save_image fn
+- [ ] Try to create the video "on-the-fly" without use too much disk

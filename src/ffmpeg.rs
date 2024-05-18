@@ -63,7 +63,7 @@ impl Ffmpeg {
         output_path: PathBuf,
         framerate: f32,
     ) -> Result<ExitStatus, std::io::Error> {
-        let input_pattern = format!("{}/frame_%04d.png", frames_dir.display());
+        let input_pattern = format!("{}/frame_%04d.bmp", frames_dir.display());
         Command::new(FFMPEG)
             .args(&[
                 OsStr::new("-v"),

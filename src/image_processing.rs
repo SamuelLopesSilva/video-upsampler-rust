@@ -1,9 +1,12 @@
-use image::{ImageBuffer, Rgb};
+use fs::File;
+use image::{ImageBuffer, ImageFormat, Rgb};
 use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
 use std::fs;
+use std::io::BufWriter;
 use std::io::{self};
 use std::path::Path;
+// use log::info;
 
 pub struct ImageProcessor<'a> {
     final_resolution: (u32, u32),
@@ -73,8 +76,14 @@ impl<'a> ImageProcessor<'a> {
                 let upscaled_image = self.bilinear_interpolation(&image);
                 let upscaled_path = self
                     .upscaled_frames_dir
-                    .join(frame_path.file_name().unwrap());
-                if upscaled_image.save(upscaled_path.clone()).is_err() {
+                    .join(frame_path.file_stem().unwrap())
+                    .with_extension("bmp");
+                let file = File::create(upscaled_path.clone()).unwrap();
+                let mut buf_writer = BufWriter::new(file);
+                if upscaled_image
+                    .write_to(&mut buf_writer, ImageFormat::Bmp)
+                    .is_err()
+                {
                     Some(format!(
                         "Failed to save upscaled frame: {}",
                         upscaled_path.display()
