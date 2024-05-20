@@ -1,98 +1,159 @@
+use fs::File;
+use image::{ImageBuffer, ImageFormat, Rgb};
+use indicatif::{ProgressBar, ProgressStyle};
+use rayon::prelude::*;
+use std::fs;
+use std::io::BufWriter;
+use std::io::{self};
 use std::path::Path;
-use image::{DynamicImage, GenericImage, GenericImageView, Rgba};
 
-pub struct ImageProcessor {
+pub struct ImageProcessor<'a> {
     final_resolution: (u32, u32),
+    frames_dir: &'a Path,
+    upscaled_frames_dir: &'a Path,
+    thread_pool: rayon::ThreadPool,
 }
 
-impl ImageProcessor {
-    pub fn new(final_resolution: (u32, u32)) -> Self {
-        ImageProcessor { final_resolution }
-    }
-
-    pub fn upscale_frames(&self, frames_dir: &Path) {
-        for i in 0.. {
-            let frame_path: std::path::PathBuf = frames_dir.join(format!("frame_{:04}.png", i));
-            if let Ok(image) = image::open(&frame_path) {
-                let upscaled_image: DynamicImage = self.bilinear_interpolation(&image);
-                upscaled_image.save(&frame_path).expect("Failed to save upscaled frame");
-            } else {
-                break;
-            }
+impl<'a> ImageProcessor<'a> {
+    pub fn new(
+        final_resolution: (u32, u32),
+        frames_dir: &'a Path,
+        upscaled_frames_dir: &'a Path,
+    ) -> Self {
+        let thread_pool = rayon::ThreadPoolBuilder::new()
+            // .num_threads(4)
+            .build()
+            .unwrap();
+        ImageProcessor {
+            final_resolution,
+            frames_dir,
+            upscaled_frames_dir,
+            thread_pool,
         }
     }
 
-    /// Performs bilinear interpolation on an image to resize it.
-    ///
-    /// # Arguments
-    ///
-    /// * `image` - A DynamicImage that holds the image to be resized.
-    ///
-    /// # Returns
-    ///
-    /// * A new DynamicImage that is the resized version of the input image.
-    ///
-    /// # Bilinear Interpolation
-    ///
-    /// Bilinear interpolation is a technique for calculating values between two points in a grid.
-    /// It's used here to calculate the color value of a pixel in the resized image based on the corresponding position in the original image.
-    ///
-    /// The calculation involves the following steps:
-    ///
-    /// 1. Calculate the position in the original image that corresponds to a pixel in the resized image.
-    /// 2. Get the colors of the four pixels in the original image that surround this position.
-    /// 3. Calculate the weights for these four colors based on the distance from the position to each pixel.
-    /// 4. Calculate the color of the pixel in the resized image by multiplying each original color by its weight and adding the results.
-    ///
-    /// This process is repeated for every pixel in the resized image.
-    fn bilinear_interpolation(&self, image: &DynamicImage) -> DynamicImage {
-        // Get the dimensions of the original and resized images.
+    pub fn upscale_frames(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let entries: Vec<fs::DirEntry> = self.read_directory()?;
+        let total_files: usize = entries.len();
+        let pb: ProgressBar = ProgressBar::new(total_files as u64);
+        pb.set_style(
+            ProgressStyle::default_bar()
+                .template(
+                    "[{elapsed_precise}] {bar:40.cyan/blue} {pos:>7}/{len:7} {msg} ETA: {eta}",
+                )
+                .expect("Failed to set template")
+                .progress_chars("##-"),
+        );
+
+        let errors: Vec<String> = self.thread_pool.install(|| {
+            entries
+                .par_iter()
+                .filter_map(|entry| self.upscale_and_save_image(entry, &pb))
+                .collect::<Vec<_>>()
+        });
+
+        if !errors.is_empty() {
+            let error_message: String = errors.join("\n");
+            Err(Box::new(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                error_message,
+            )))
+        } else {
+            pb.finish();
+            Ok(())
+        }
+    }
+
+    fn read_directory(&self) -> Result<Vec<fs::DirEntry>, io::Error> {
+        fs::read_dir(self.frames_dir)?.collect()
+    }
+
+    fn upscale_and_save_image(&self, entry: &fs::DirEntry, pb: &ProgressBar) -> Option<String> {
+        let frame_path: std::path::PathBuf = entry.path();
+        if frame_path.is_file() && frame_path.extension().unwrap_or_default() == "png" {
+            if let Ok(image) = self.load_image(&frame_path) {
+                let upscaled_image = self.bilinear_interpolation(&image);
+                let upscaled_path = self
+                    .upscaled_frames_dir
+                    .join(frame_path.file_stem().unwrap())
+                    .with_extension("bmp");
+                let file = File::create(upscaled_path.clone()).unwrap();
+                let mut buf_writer = BufWriter::new(file);
+                if upscaled_image
+                    .write_to(&mut buf_writer, ImageFormat::Bmp)
+                    .is_err()
+                {
+                    Some(format!(
+                        "Failed to save upscaled frame: {}",
+                        upscaled_path.display()
+                    ))
+                } else {
+                    pb.inc(1);
+                    None
+                }
+            } else {
+                Some(format!("Failed to load image: {}", frame_path.display()))
+            }
+        } else {
+            None
+        }
+    }
+
+    fn load_image(&self, path: &Path) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, image::ImageError> {
+        let file: File = fs::File::open(path)?;
+        let reader: io::BufReader<File> = std::io::BufReader::new(file);
+        let dynamic_image: image::DynamicImage = image::load(reader, image::ImageFormat::Png)?;
+        let image: ImageBuffer<Rgb<u8>, Vec<u8>> = dynamic_image.to_rgb8();
+        Ok(image)
+    }
+
+    fn bilinear_interpolation(
+        &self,
+        image: &ImageBuffer<Rgb<u8>, Vec<u8>>,
+    ) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
         let (width, height) = image.dimensions();
         let (new_width, new_height) = self.final_resolution;
-        let mut new_image: DynamicImage = DynamicImage::new_rgba8(new_width, new_height);
+        let mut new_image: ImageBuffer<Rgb<u8>, _> = ImageBuffer::new(new_width, new_height);
 
-        // Calculate the ratio of old dimensions to new dimensions.
-        let width_ratio = width as f32 / new_width as f32;
-        let height_ratio = height as f32 / new_height as f32;
+        let width_ratio: f32 = width as f32 / new_width as f32;
+        let height_ratio: f32 = height as f32 / new_height as f32;
 
-        // Iterate over every pixel in the resized image.
-        for y in 0..new_height {
-            for x in 0..new_width {
-                // Calculate the corresponding position in the original image.
+        for x in 0..new_width {
+            for y in 0..new_height {
                 let gx = x as f32 * width_ratio;
                 let gy = y as f32 * height_ratio;
 
-                // Get the coordinates of the four pixels that surround this position.
                 let gxi = gx.floor() as u32;
                 let gyi = gy.floor() as u32;
 
-                // Get the colors of these four pixels.
-                let c00: image::Rgba<u8> = image.get_pixel(gxi, gyi).into();
-                let c10: image::Rgba<u8> = image.get_pixel((gxi + 1).min(width - 1), gyi).into();
-                let c01: image::Rgba<u8> = image.get_pixel(gxi, (gyi + 1).min(height - 1)).into();
-                let c11: image::Rgba<u8> = image.get_pixel((gxi + 1).min(width - 1), (gyi + 1).min(height - 1)).into();
+                let gxi1 = (gxi + 1).min(width - 1);
+                let gyi1 = (gyi + 1).min(height - 1);
 
-                // Calculate the weights for these four colors.
-                let weights = [(1.0 - gx + gxi as f32) * (1.0 - gy + gyi as f32),
-                            (gx - gxi as f32) * (1.0 - gy + gyi as f32),
-                            (1.0 - gx + gxi as f32) * (gy - gyi as f32),
-                            (gx - gxi as f32) * (gy - gyi as f32)];
+                let c00 = image.get_pixel(gxi, gyi);
+                let c10 = image.get_pixel(gxi1, gyi);
+                let c01 = image.get_pixel(gxi, gyi1);
+                let c11 = image.get_pixel(gxi1, gyi1);
 
-                // Calculate the color of the pixel in the resized image.
-                let mut pixel = [0u8; 4];
-                for i in 0..4 {
-                    pixel[i] = (c00.0[i] as f32 * weights[0]
-                                + c10.0[i] as f32 * weights[1]
-                                + c01.0[i] as f32 * weights[2]
-                                + c11.0[i] as f32 * weights[3]) as u8;
-                }
+                let wx = gx - gxi as f32;
+                let wy = gy - gyi as f32;
 
-                // Set the color of the pixel in the resized image.
-                new_image.put_pixel(x, y, Rgba(pixel));
+                let r = (c00.0[0] as f32 * (1.0 - wx - wy + wx * wy)
+                    + c10.0[0] as f32 * (wx - wx * wy)
+                    + c01.0[0] as f32 * (wy - wx * wy)
+                    + c11.0[0] as f32 * wx * wy) as u8;
+                let g = (c00.0[1] as f32 * (1.0 - wx - wy + wx * wy)
+                    + c10.0[1] as f32 * (wx - wx * wy)
+                    + c01.0[1] as f32 * (wy - wx * wy)
+                    + c11.0[1] as f32 * wx * wy) as u8;
+                let b = (c00.0[2] as f32 * (1.0 - wx - wy + wx * wy)
+                    + c10.0[2] as f32 * (wx - wx * wy)
+                    + c01.0[2] as f32 * (wy - wx * wy)
+                    + c11.0[2] as f32 * wx * wy) as u8;
+
+                *new_image.get_pixel_mut(x, y) = Rgb([r, g, b]);
             }
         }
 
-        // Return the resized image.
         new_image
     }
 }

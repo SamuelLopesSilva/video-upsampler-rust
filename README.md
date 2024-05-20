@@ -2,7 +2,7 @@
 
 ## Overview
 
-The "video-upsampler" project is a Rust-based application designed to upscale video resolution using some algorithms and techniques. The project utilizes the ffmpeg-next library for video processing, the image library for image manipulation, and the log, colored, env_logger libraries for logging.
+This project is a Rust-based application designed to upscale video resolution using some algorithms and techniques. The project utilizes the ffmpeg-next library for video processing, the image library for image manipulation, and the log, colored, env_logger libraries for logging.
 
 **Key Features**
 
@@ -47,3 +47,10 @@ To run the project on MacOS, Linux, and Windows, follow these steps:
    * `output.mp4` is the desired output file path. If the path for the output is not passed, the code will save the upscaled video in the same folder as the input file, with a filename that includes "_upscaled" inside a folder with the name of the input file name.
 
    The `Config` struct is initialized with these arguments, and the `main` function uses this configuration to extract frames from the input video, upscale them, and reassemble the video with the new frames and audio. Note: The `Config` struct expects (mandatory) the input file and framerate as command-line arguments. If these arguments are not provided, the program will exit with an error message.
+
+## TODO
+
+- [X] Find some bilinear interpolation implementation to reduce bottleneck
+- [X] Verify if changing the frame extraction code makes sense (use OpenCV)
+- [X] Try to reduce the time spent in upscale_and_save_image fn
+- [ ] Try to create the video "on-the-fly" without use too much disk
